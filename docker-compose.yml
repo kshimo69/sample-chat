@@ -1,0 +1,75 @@
+version: '3.4'
+services:
+  proto:
+    command: ./scripts/protoc.sh
+    build:
+      context: .
+      target: proto
+      args:
+        - http_proxy
+        - https_proxy
+    environment:
+      - http_proxy
+      - https_proxy
+    working_dir: /work
+    volumes:
+      - .:/work
+  backend:
+    command: ./scripts/server.sh
+    build:
+      context: .
+      target: backend
+      args:
+        - http_proxy
+        - https_proxy
+    environment:
+      - http_proxy
+      - https_proxy
+      - no_proxy=localhost,host.docker.internal,envoy
+    working_dir: /go/src/app
+    volumes:
+      - ./server:/go/src/app
+    ports:
+      - "9999:9999"
+    depends_on:
+      - proto
+  envoy:
+    build:
+      context: .
+      target: envoy
+      args:
+        - http_proxy
+        - https_proxy
+    environment:
+      - http_proxy
+      - https_proxy
+      - no_proxy=localhost,host.docker.internal,backend
+    working_dir: /work
+    volumes:
+      - ./envoy.yaml:/work/envoy.yaml
+    ports:
+      - "48080:48080"
+    depends_on:
+      - backend
+    # links:
+    #   - backend
+  frontend:
+    command: ./scripts/client.sh
+    build:
+      context: .
+      target: frontend
+      args:
+        - http_proxy
+        - https_proxy
+    environment:
+      - http_proxy
+      - https_proxy
+      - EXTEND_ESLINT=true
+    working_dir: /work
+    volumes:
+      - ./client:/work
+      - /work/node_modules
+    depends_on:
+      - envoy
+    ports:
+      - "23000:3000"
